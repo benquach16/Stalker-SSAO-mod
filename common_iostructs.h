@@ -316,6 +316,7 @@ struct					gbuffer_data
 	float   hemi; // AO
 	float3  C;
 	float   gloss;
+	float extra; //extra data from packed normal
 };
 
 ////////////////////////////////////////////////////////////////

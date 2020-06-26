@@ -92,13 +92,13 @@ f_deffer 	main	( p_flat I )
   O				= pack_gbuffer(
   								Ne,
 								float4 	(I.position.xyz + Ne.xyz*def_virtualh/2.h	, 	ms			),
-								float4	(D.rgb,											def_gloss	) );
+								float4	(D.rgb,											def_gloss	), 2.0f );
 #else
   O				= pack_gbuffer(
   								Ne,
-								float4 	(I.position.xyz + Ne.xyz*def_virtualh/2.h	, 	ms			),
+								float4 	(I.position.xyz + Ne.xyz*def_virtualh/2.h	, 	ms		),
 								float4	(D.rgb,											def_gloss	),
-								mask );
+								mask, 2.0f );
 #endif
   return O;
 }

@@ -135,17 +135,18 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 #ifdef USE_HBAO
 	 occ = calc_hbao( P.z, N, I.tc0, I.pos2d );
 #else // USE_HBAO
-	 occ = calc_ssdo(P, N, I.tc0, ISAMPLE);
+
+	//Implementation here now takes radius and sample count as parameters.
+	//occ = calc_ssdo(P, N, I.tc0, ISAMPLE, 2.0f, 32);
+	occ = calc_ssdo_fast(P, N, I.tc0, ISAMPLE, 1.0f);
 #endif
 #endif // USE_HDAO
-	
 	hmodel	(hdiffuse, hspecular, mtl, N.w, D.w, P.xyz, N.xyz);
-
 	hdiffuse *= occ;
 	hspecular *= occ;
 
-        float4         light       = float4         (L.rgb + hdiffuse, L.w)        ;
-        float4         C           = D*light       ;                             // rgb.gloss * light(diffuse.specular)
+	float4         light       = float4         (L.rgb + hdiffuse, L.w)        ;
+	float4         C           = D*light       ;                             // rgb.gloss * light(diffuse.specular)
 	float3         spec        = C.www * L.rgb + hspecular * C.rgba;              // replicated specular
 
 #ifdef         USE_SUPER_SPECULAR
@@ -199,10 +200,18 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 #ifdef        USE_SUPER_SPECULAR
         color        	= spec          - hspecular	;
 #endif
-//		color 		= N; //show normals
+		//color 		= N; //show normals
 //		color                        	= D.xyz;
-//		color 
 
+		// Second pass for SSAO
+		// A larger radius pass that uses less samples and is applied regardless of lighting.
+		// not strictly speaking realistic nor is it in the paper...
+		// but makes up for lack of blur pass
+		float3 occ_rough = calc_ssdo_fast_rough(P, N, I.tc0, ISAMPLE, 5.0f)*1.3;
+		//occ_rough = saturate(occ_rough);
+		color = color * occ_rough;
+		//color = float3(gbd.extra, gbd.extra, gbd.extra);
+		//color = occ;
         _out        	o;
         tonemap        	(o.low, o.high, color, tm_scale )	;
                         o.low.a         = skyblend	;
