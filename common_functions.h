@@ -283,7 +283,8 @@ f_deffer pack_gbuffer( float4 norm, float4 pos, float4 col, uint imask , float e
 	f_deffer res;
 
 	res.position	= pos;
-	res.Ne.xy			= gbuf_pack_normal(norm);
+	res.Ne.xy			= gbuf_pack_normal(norm.xyz);
+	res.Ne.w = norm.w;
 	res.Ne.z = extra;
 	res.C			   = col;
 
@@ -314,7 +315,8 @@ gbuffer_data gbuffer_load_data( float2 tc : TEXCOORD, uint iSample )
 	float4 N	= s_normal.Load( int3( tc * pos_decompression_params2.xy, 0 ), iSample );
 #endif
 
-	gbd.N		= gbuf_unpack_normal(N.xy);
+	gbd.N = gbuf_unpack_normal(N.xy);
+	gbd.extra = N.z;
 	gbd.hemi	= N.w;
 
 #ifndef USE_MSAA
@@ -326,7 +328,7 @@ gbuffer_data gbuffer_load_data( float2 tc : TEXCOORD, uint iSample )
 
 	gbd.C		= C.xyz;
 	gbd.gloss	= C.w;
-	gbd.extra = N.z;
+
 	return gbd;
 }
 

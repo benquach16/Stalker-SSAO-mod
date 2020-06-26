@@ -75,6 +75,7 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 	float4	P = float4( gbd.P, gbd.mtl );	// position.(mtl or sun)
 	float4	N = float4( gbd.N, gbd.hemi );		// normal.hemi
 	float4	D = float4( gbd.C, gbd.gloss );		// rgb.gloss
+	float grass = gbd.extra;
 #ifndef USE_MSAA
 	float4	L = s_accumulator.Sample( smp_nofilter, I.tc0);	// diffuse.specular
 #else
@@ -116,7 +117,6 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 #endif
 	
 	float3 occ = float3(1.f,1.f,1.f);
-
 #ifdef USE_HDAO
 #ifdef SM_5
 #if SSAO_QUALITY > 3
@@ -138,7 +138,7 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 
 	//Implementation here now takes radius and sample count as parameters.
 	//occ = calc_ssdo(P, N, I.tc0, ISAMPLE, 2.0f, 32);
-	occ = calc_ssdo_fast(P, N, I.tc0, ISAMPLE, 1.0f);
+	occ = calc_ssdo_fast(P, N, I.tc0, ISAMPLE, 1.0f, grass);
 #endif
 #endif // USE_HDAO
 	hmodel	(hdiffuse, hspecular, mtl, N.w, D.w, P.xyz, N.xyz);
@@ -207,10 +207,9 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 		// A larger radius pass that uses less samples and is applied regardless of lighting.
 		// not strictly speaking realistic nor is it in the paper...
 		// but makes up for lack of blur pass
-		float3 occ_rough = calc_ssdo_fast_rough(P, N, I.tc0, ISAMPLE, 5.0f)*1.3;
+		//float3 occ_rough = calc_ssdo_fast_rough(P, N, I.tc0, ISAMPLE, 5.0f)*1.3;
 		//occ_rough = saturate(occ_rough);
-		color = color * occ_rough;
-		//color = float3(gbd.extra, gbd.extra, gbd.extra);
+		//color = color * occ_rough;
 		//color = occ;
         _out        	o;
         tonemap        	(o.low, o.high, color, tm_scale )	;

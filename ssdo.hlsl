@@ -74,7 +74,6 @@ float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float thr
 	tmp += step(screen_occ + bias, P.z);
 	
 	//grass filter
-	tmp += (gbd.extra == 2.0f) ? 1.0 : 0.0;
 	float occ_coeff = saturate(is_occluder + amount+tmp);
 	return occ_coeff;
 }
@@ -146,7 +145,7 @@ float3 calc_ssdo (float3 P, float3 N, float2 tc, uint iSample, float radius, int
 
 //SSAO_QUALITY is basically worthless now. need to use it to generate permutations with less samples
 //also using this function means that you always get SSDO, regardless of if you have it enabled.
-float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius)
+float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius, float grass)
 {
 	float occ = 0.f;
 	float scale = calc_scale(radius, P.z);
@@ -161,12 +160,9 @@ float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius
 		occ += occ_coeff;
 	}
 	occ /= cSamples;
+	occ += grass;
 	occ = saturate(occ);
 	occ = occ + (1 - occ)*(1 - BLEND_FACTOR);
-	//line just to make it a little broader - but pow is a slow op
-	//occ = pow(occ, 1.5);
-	//occ = occ * occ;
-	
 	//scalar ops then covert to float3 at the end
 	return float3(occ, occ, occ);
 }
