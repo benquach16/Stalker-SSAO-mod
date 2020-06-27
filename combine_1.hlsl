@@ -135,12 +135,16 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 #ifdef USE_HBAO
 	 occ = calc_hbao( P.z, N, I.tc0, I.pos2d );
 #else // USE_HBAO
-
-	//Implementation here now takes radius and sample count as parameters.
+	//Implementation here now takes radius as parameter
 	//occ = calc_ssdo(P, N, I.tc0, ISAMPLE, 2.0f, 32);
-	occ = calc_ssdo_fast(P, N, I.tc0, ISAMPLE, 1.0f, grass);
+	occ = calc_ssdo_fast(P, N, I.tc0, ISAMPLE, 0.5f, grass);
 #endif
 #endif // USE_HDAO
+	// Second pass for SSAO
+	// A larger radius pass that uses less samples and is applied regardless of lighting.
+	// if we do it here, should be cache friendly (?)
+	//float3 occ_rough = calc_ssdo_fast_rough(P, N, I.tc0, ISAMPLE, 5.0f, grass);
+	//occ = occ * occ_rough;
 	hmodel	(hdiffuse, hspecular, mtl, N.w, D.w, P.xyz, N.xyz);
 	hdiffuse *= occ;
 	hspecular *= occ;
@@ -203,14 +207,12 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 		//color 		= N; //show normals
 //		color                        	= D.xyz;
 
-		// Second pass for SSAO
-		// A larger radius pass that uses less samples and is applied regardless of lighting.
-		// not strictly speaking realistic nor is it in the paper...
-		// but makes up for lack of blur pass
-		//float3 occ_rough = calc_ssdo_fast_rough(P, N, I.tc0, ISAMPLE, 5.0f)*1.3;
+
 		//occ_rough = saturate(occ_rough);
-		//color = color * occ_rough;
-		//color = occ;
+		//color = occ_rough;
+		//occ_rough = occ_rough * 0.5 + 0.5;
+		occ = occ * 0.5 + 0.5;
+		color = occ * color;
         _out        	o;
         tonemap        	(o.low, o.high, color, tm_scale )	;
                         o.low.a         = skyblend	;

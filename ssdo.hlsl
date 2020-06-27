@@ -41,9 +41,22 @@ static const float3 arr[32] =
 		float3(0.534, 0.157, -0.250),
 };
 
-#define DISCARD_THRESHOLD 0.8
-#define DISCARD_THRESHOLD_2 1.0
-#define BLEND_FACTOR 1.8
+#define DISCARD_THRESHOLD 1.2
+#define DISCARD_THRESHOLD_2 1.2
+#define BLEND_FACTOR 1.4
+
+float linearZ (float z)
+{
+#ifdef INVERT_NEAR_FAR
+  const float f = 1.0;
+  const float n = 1000.0;
+#else
+  const float f = 1000.0;
+  const float n = 1.0;
+#endif
+
+  return n / (f - z * (f - n)) * f;
+}
 
 //modified SSDO function
 //passing in threshold gives us the ability to modify threshold based on distance
@@ -62,15 +75,16 @@ float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float thr
 	screen_occ = lerp(screen_occ, 0.f, is_sky(screen_occ));
 	float is_occluder = step(occ_pos_view.z, screen_occ);
 	float dist = abs(P.z - screen_occ);
-	float tmp = smoothstep(0.0, 1.0, saturate(dist - threshold));
-	
+	//float tmp = smoothstep(0.0, 1.0, saturate(dist - threshold));
+	float tmp = 0.f;
 	//float tmp = step(threshold, dist); // old threshold function. if its too blurry try switching
-	//float amount = saturate(dist);
+	float amount = saturate(dist*0.5); //accumulation in this function is backwards. lower means more
 	//only consider if screen_occ is greater than P.z
 	
 	//darker the farther away it is
 	//original code did something similar, and looks surprisingly good
-	float amount = saturate(0.8 - screen_occ);
+	//float amount = saturate(0.8 - ((screen_occ * 0.6) + 0.4));
+	//float amount = 0.2 + saturate(dist * 0.1);
 	tmp += step(screen_occ + bias, P.z);
 	
 	//grass filter
@@ -102,8 +116,9 @@ float accumulate2(int i, float3 P, float3 N, uint iSample, float scale, float th
 
 float calc_scale(float radius, float depth)
 {
-	//float normalized = depth * 0.5 + 0.5;
+	//float normalized = linearZ(depth);
 	return radius / depth;
+	//return radius * (depth/10.f);
 	//return (radius*0.5) * ((depth * 0.1) + 0.3);
 }
 
@@ -142,14 +157,20 @@ float3 calc_ssdo (float3 P, float3 N, float2 tc, uint iSample, float radius, int
 	occ = saturate(occ);
 	return (occ + (1 - occ)*(1 - BLEND_FACTOR));
 }
+#endif //SSAO_QUALITY
 
-//SSAO_QUALITY is basically worthless now. need to use it to generate permutations with less samples
-//also using this function means that you always get SSDO, regardless of if you have it enabled.
+//SSAO_QUALITY is basically worthless now. you always get the same amount of samples regardless
+#ifndef SSAO_QUALITY
+float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius, float grass)
+{
+	return 1;
+}
+#else // SSAO_QUALITY
 float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius, float grass)
 {
 	float occ = 0.f;
 	float scale = calc_scale(radius, P.z);
-	const int cSamples = 32;
+	const int cSamples = 26;
 	//float3 randomVec = normalize(arr[0]);
 	//float3 bitangent = cross(randomVec, N);
 	//float3x3 TBN = float3x3(N, bitangent, randomVec);
@@ -168,11 +189,11 @@ float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius
 }
 
 //rougher calculation with some contrast
-float3 calc_ssdo_fast_rough (float3 P, float3 N, float2 tc, uint iSample, float radius)
+float3 calc_ssdo_fast_rough (float3 P, float3 N, float2 tc, uint iSample, float radius, float grass)
 {
 	float occ = 0.f;
 	float scale = calc_scale(radius, P.z);
-	const int cSamples = 20;
+	const int cSamples = 8;
 	[unroll]
 	for (int i = 0; i < cSamples; i++)
 	{
@@ -180,8 +201,8 @@ float3 calc_ssdo_fast_rough (float3 P, float3 N, float2 tc, uint iSample, float 
 		occ += occ_coeff;
 	}
 	occ /= cSamples;
+	occ += grass;
 	occ = saturate(occ);
-	occ = occ + (1 - occ)*(1 - 0.8);
 	occ = ((occ - 0.5f) * 1.1) + 0.5f;
 	//scalar ops then covert to float3 at the end
 	return float3(occ, occ, occ);
