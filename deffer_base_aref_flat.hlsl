@@ -92,13 +92,13 @@ f_deffer 	main	( p_flat I )
   O				= pack_gbuffer(
   								Ne,
 								float4 	(I.position.xyz + Ne.xyz*def_virtualh/2.h	, 	ms			),
-								float4	(D.rgb,											def_gloss	), 1.0f);
+								float4	(D.rgb,											def_gloss	), SSDO_GRASS_CONTIRUBTION);
 #else
   O				= pack_gbuffer(
   								Ne,
 								float4 	(I.position.xyz + Ne.xyz*def_virtualh/2.h	, 	ms		),
 								float4	(D.rgb,											def_gloss	),
-								mask, 1.0f);
+								mask, SSDO_GRASS_CONTIRUBTION);
 #endif
   return O;
 }

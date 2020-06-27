@@ -140,9 +140,8 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 	occ = calc_ssdo_fast(P, N, I.tc0, ISAMPLE, 0.5f, grass);
 #endif
 #endif // USE_HDAO
-	// Second pass for SSAO
-	// A larger radius pass that uses less samples and is applied regardless of lighting.
-	// if we do it here, should be cache friendly (?)
+	// Second pass for SSAO to simulate blur
+	// way too slow, though
 	//float3 occ_rough = calc_ssdo_fast_rough(P, N, I.tc0, ISAMPLE, 5.0f, grass);
 	//occ = occ * occ_rough;
 	hmodel	(hdiffuse, hspecular, mtl, N.w, D.w, P.xyz, N.xyz);
@@ -207,12 +206,12 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 		//color 		= N; //show normals
 //		color                        	= D.xyz;
 
-
-		//occ_rough = saturate(occ_rough);
-		//color = occ_rough;
-		//occ_rough = occ_rough * 0.5 + 0.5;
+		//lighter contribution here that is not affected by lighting. avoids the effect where sometimes 
+		//the occlusion would not have any contribution in objects in bright light, but should still have
+		//occlusion due to indirect lighting/slightly off from light source
 		occ = occ * 0.5 + 0.5;
 		color = occ * color;
+		//color = occ;
         _out        	o;
         tonemap        	(o.low, o.high, color, tm_scale )	;
                         o.low.a         = skyblend	;

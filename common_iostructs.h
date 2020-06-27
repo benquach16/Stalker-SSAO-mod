@@ -316,7 +316,9 @@ struct					gbuffer_data
 	float   hemi; // AO
 	float3  C;
 	float   gloss;
-	float extra; //extra data from packed normal
+	//extra data from packed normal. this is used primarily in ambient occlusion to add
+	//an ignore value to stop grass from being dark
+	float extra; 
 };
 
 ////////////////////////////////////////////////////////////////
