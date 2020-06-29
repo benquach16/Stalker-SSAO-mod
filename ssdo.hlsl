@@ -41,14 +41,26 @@ static const float3 arr[32] =
 		float3(0.534, 0.157, -0.250),
 };
 
-#define DISCARD_THRESHOLD 1.2
-#define DISCARD_THRESHOLD_2 1.2
+#define DISCARD_THRESHOLD 0.5
+#define DISCARD_THRESHOLD_2 0.5
+
+
+float LinearizeDepth(float depth)
+{
+	return 1.0 - (m_P._43/(m_P._33 + depth));
+	//return ((depth-m_P._43)/(m_P._33-m_P._43)) / m_P._43;
+}
+
+float NormalizeDepth(float depth)
+{
+	return depth/10;
+}
 
 //modified SSDO function
 //passing in threshold gives us the ability to modify threshold based on distance
 float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float threshold, float bias)
 {
-	float3 occ_pos_view = P.xyz + (arr[i] + N) * scale;
+	float3 occ_pos_view = P.xyz + ((arr[i] + N) * scale);
 	float4 occ_pos_screen = proj_to_screen(mul(m_P, float4(occ_pos_view, 1.0)));
 	occ_pos_screen.xy /= occ_pos_screen.w;
 	#ifdef USE_MSAA
@@ -58,26 +70,34 @@ float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float thr
 	#endif
 
 	float screen_occ = gbd.P.z;
+	float currentDepth = P.z;
 	screen_occ = lerp(screen_occ, 0.f, is_sky(screen_occ));
 	float is_occluder = step(occ_pos_view.z, screen_occ);
-	float dist = abs(P.z - screen_occ);
+	float dist = abs( currentDepth - screen_occ);
 	
 	//threshold functions
 	//float ignore = smoothstep(0.0, 1.0, saturate(dist - threshold));
-	//float ignore = step(threshold, dist); // old threshold function. if its too blurry try switching
+	//float ignore = step(dist, threshold); // old threshold function. if its too blurry try switching
 	float ignore = 0.f; // can do 0 if accu is based on distance
 	
-	float amount = saturate(dist * 0.5); //accumulation in this function is backwards. lower means more
-	
+	float amount = saturate(dist * dist);
 	//old accumulation function - darker the farther away something is
 	//original code did something similar, and looks alright
-	//float amount = saturate(0.8 - ((screen_occ * 0.6) + 0.4));	
-	
+	//float amount = saturate(1.5 - screen_occ); //accumulation in this function is backwards. lower means more
+	//float rangeCheck = smoothstep(0.0, 1.0, 1.0/dist);
+	//float amount = step(screen_occ,currentDepth) * rangeCheck;
+
 	//only consider if screen_occ is greater than P.z
 	//This ignores samples that are too far in front to avoid bleeding
-	ignore += step(screen_occ + bias, P.z);
+	//ignore += step(screen_occ, currentDepth + bias);
+	//ignore += smoothstep(0.0, 1.0, saturate(currentDepth - (screen_occ + bias) * P.z));
 
-	float occ_coeff = saturate(is_occluder + amount+ignore);
+	//ignore unrealistic angles
+	float3 tosample = normalize(gbd.P - P);
+	float dp = dot(N, tosample);
+	//ignore += 1 - step(0.1, dp);
+	ignore += 1 - smoothstep(0.0, 1.0, dp);
+	float occ_coeff = saturate(is_occluder + amount + ignore);
 	return occ_coeff;
 }
 
@@ -86,7 +106,7 @@ float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float thr
 float accumulate2(int i, float3 P, float3 N, uint iSample, float scale, float threshold, float3x3 TBN)
 {
 	float3 sample = mul(TBN, arr[i]);
-	sample = P + sample * 0.2;
+	sample = P + sample * scale;
 	float4 occ_pos_screen = proj_to_screen(mul(m_P, float4(sample, 1.0)));
 	occ_pos_screen.xy /= occ_pos_screen.w;
 	
@@ -96,19 +116,18 @@ float accumulate2(int i, float3 P, float3 N, uint iSample, float scale, float th
 	gbuffer_data gbd = gbuffer_load_data(occ_pos_screen.xy);
 	#endif
 
-	float screen_occ = gbd.P.z;
-	float occ_coeff = (screen_occ >= P.z + 0.025) ? 1.0 : 0.0;
-	float range_check = smoothstep(0.0f, 1.0f, 0.2f/abs(P.z - screen_occ));
+	float screen_occ = NormalizeDepth(gbd.P.z);
+	float currentDepth = NormalizeDepth(P.z);
+	float occ_coeff = (screen_occ>=currentDepth+0.025)?1.0:0.0;
+	float range_check = smoothstep(0.0f, 1.0f, scale/abs(currentDepth - screen_occ));
 	occ_coeff *= range_check;
 	return occ_coeff;
 }
 
 float calc_scale(float radius, float depth)
 {
-	//float normalized = linearZ(depth);
-	return radius / depth;
+	return radius/depth;
 	//return radius * (depth/10.f);
-	//return (radius*0.5) * ((depth * 0.1) + 0.3);
 }
 
 //SSAO_QUALITY is basically worthless now. you always get the same amount of samples regardless
@@ -122,21 +141,45 @@ float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius
 {
 	float occ = 0.f;
 	float scale = calc_scale(radius, P.z);
-	const int cSamples = 26;
-	//float3 randomVec = normalize(arr[0]);
-	//float3 bitangent = cross(randomVec, N);
-	//float3x3 TBN = float3x3(N, bitangent, randomVec);
+	const int cSamples = 32;
 	[unroll]
 	for (int i = 0; i < cSamples; i++)
 	{
-		//bias of 0.2 - distance to sample something that is in front
+		//bias - distance to sample something that is in front
 		float occ_coeff = accumulate(i, P, N, iSample, scale, DISCARD_THRESHOLD, 0.2);
 		occ += occ_coeff;
 	}
+		
 	occ /= cSamples;
-	occ += grass;
+	grass = saturate(grass);
+	occ += (grass==0.0) ? 1.0 : 0.0;
 	occ = saturate(occ);
 	occ = occ + (1 - occ)*(1 - SSDO_BLEND_FACTOR);
+	//scalar ops then covert to float3 at the end
+	return float3(occ, occ, occ);
+}
+
+float3 calc_ssao_fast (float3 P, float3 N, float2 tc, uint iSample, float radius, float grass)
+{
+	float occ = 0.f;
+	float scale = calc_scale(radius, P.z);
+	const int cSamples = 26;
+	float3 randomVec = normalize(arr[0]);
+	float3 bitangent = cross(randomVec, N);
+	float3x3 TBN = float3x3(N, bitangent, randomVec);
+	[unroll]
+	for (int i = 0; i < cSamples; i++)
+	{
+		//bias - distance to sample something that is in front
+		float occ_coeff = accumulate2(i, P, N, iSample, 0.5f, DISCARD_THRESHOLD, TBN);
+		occ += occ_coeff;
+	}
+	
+	
+	occ /= cSamples;
+	occ = 1.0 - occ;
+	occ = saturate(occ);
+	//occ = occ + (1 - occ)*(1 - SSDO_BLEND_FACTOR);
 	//scalar ops then covert to float3 at the end
 	return float3(occ, occ, occ);
 }

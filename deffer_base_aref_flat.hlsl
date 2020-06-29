@@ -91,14 +91,14 @@ f_deffer 	main	( p_flat I )
 #if !( defined(MSAA_ALPHATEST_DX10_1_ATOC) || defined(MSAA_ALPHATEST_DX10_1) )
   O				= pack_gbuffer(
   								Ne,
-								float4 	(I.position.xyz + Ne.xyz*def_virtualh/2.h	, 	ms			),
-								float4	(D.rgb,											def_gloss	), SSDO_GRASS_CONTIRUBTION);
+								float4 	(I.position.xyz + Ne.xyz*def_virtualh/2.h	, 	SSDO_GRASS_CONTIRUBTION			),
+								float4	(D.rgb,											def_gloss	));
 #else
   O				= pack_gbuffer(
   								Ne,
-								float4 	(I.position.xyz + Ne.xyz*def_virtualh/2.h	, 	ms		),
+								float4 	(I.position.xyz + Ne.xyz*def_virtualh/2.h	, 	SSDO_GRASS_CONTIRUBTION		),
 								float4	(D.rgb,											def_gloss	),
-								mask, SSDO_GRASS_CONTIRUBTION);
+								mask);
 #endif
   return O;
 }
