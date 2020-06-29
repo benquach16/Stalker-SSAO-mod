@@ -75,7 +75,7 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 	float4	P = float4( gbd.P, gbd.mtl );	// position.(mtl or sun)
 	float4	N = float4( gbd.N, gbd.hemi );		// normal.hemi
 	float4	D = float4( gbd.C, gbd.gloss );		// rgb.gloss
-	float grass = gbd.mtl;
+	float grass = gbd.extra;
 #ifndef USE_MSAA
 	float4	L = s_accumulator.Sample( smp_nofilter, I.tc0);	// diffuse.specular
 #else
@@ -144,14 +144,6 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 	//float3 occ_rough = calc_ssdo_fast_rough(P, N, I.tc0, ISAMPLE, 5.0f, grass);
 	//occ = occ * occ_rough;
 	
-	//its black at night
-	//need to do something about that
-	//float darkness = (smoothstep(1.0, 0.0, L_sun_color*2.5));
-	//darkness = darkness * SSDO_BLEND_FACTOR;
-	//occ = saturate(occ);
-	//occ = saturate(occ + darkness);
-	//occ = min(float3(1.0, 1.0, 1.0), occ);
-	
 	hmodel	(hdiffuse, hspecular, mtl, N.w, D.w, P.xyz, N.xyz);
 	hdiffuse *= occ;
 	hspecular *= occ;
@@ -217,8 +209,8 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 		//lighter contribution here that is not affected by lighting. avoids the effect where sometimes 
 		//the occlusion would not have any contribution in objects in bright light, but should still have
 		//occlusion due to indirect lighting/slightly off from light source
-		occ = occ * 0.3+ 0.7;
-		//occ = saturate(occ + darkness * 2);
+		const float cOcclusion = 0.4;
+		occ = occ * cOcclusion + (1.0 - cOcclusion);
 		color = occ * color;
 		//color = L_sun_color;
 		//float d = P.z;

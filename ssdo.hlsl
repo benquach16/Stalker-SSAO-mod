@@ -43,6 +43,7 @@ static const float3 arr[32] =
 
 #define DISCARD_THRESHOLD 0.5
 #define DISCARD_THRESHOLD_2 0.5
+#define ANGLE_THRESHOLD 0.1
 
 
 float LinearizeDepth(float depth)
@@ -88,15 +89,15 @@ float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float thr
 	//float amount = step(screen_occ,currentDepth) * rangeCheck;
 
 	//only consider if screen_occ is greater than P.z
-	//This ignores samples that are too far in front to avoid bleeding
+	//This ignores samples that are too far behind to avoid bleeding
 	//ignore += step(screen_occ, currentDepth + bias);
 	//ignore += smoothstep(0.0, 1.0, saturate(currentDepth - (screen_occ + bias) * P.z));
 
 	//ignore unrealistic angles
 	float3 tosample = normalize(gbd.P - P);
 	float dp = dot(N, tosample);
-	//ignore += 1 - step(0.1, dp);
-	ignore += 1 - smoothstep(0.0, 1.0, dp);
+	//ignore += 1 - step(ANGLE_THRESHOLD, dp);
+	ignore += 1 - smoothstep(0.0, 1.0, dp - ANGLE_THRESHOLD);
 	float occ_coeff = saturate(is_occluder + amount + ignore);
 	return occ_coeff;
 }
@@ -151,8 +152,7 @@ float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius
 	}
 		
 	occ /= cSamples;
-	grass = saturate(grass);
-	occ += (grass==0.0) ? 1.0 : 0.0;
+	occ += (grass == SSDO_GRASS_CONTIRUBTION);
 	occ = saturate(occ);
 	occ = occ + (1 - occ)*(1 - SSDO_BLEND_FACTOR);
 	//scalar ops then covert to float3 at the end
