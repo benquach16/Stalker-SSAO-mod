@@ -16,3 +16,7 @@ Pros:
 
 Cons:
 * Not realistic
+
+## Implementation Details
+
+This shader encodes extra information inside the gbuffers in order to prevent grass contribution to AO (resulting in extremely dark grass). Normally, position.w and normal.w encodes material id and hemisphere information for ambient lighting. These are now packed into a single float inside position.w. Now, normal.w is used to encode extra information used to mask foliage from ambient occlusion contributions. During loading of gbuffer information, this float is unpacked and the extra mask information is added to the returning struct.
