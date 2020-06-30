@@ -45,16 +45,10 @@ static const float3 arr[32] =
 #define DISCARD_THRESHOLD_2 0.5
 #define ANGLE_THRESHOLD 0.1
 
-
 float LinearizeDepth(float depth)
 {
 	return 1.0 - (m_P._43/(m_P._33 + depth));
 	//return ((depth-m_P._43)/(m_P._33-m_P._43)) / m_P._43;
-}
-
-float NormalizeDepth(float depth)
-{
-	return depth/10;
 }
 
 //modified SSDO function
@@ -102,29 +96,6 @@ float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float thr
 	return occ_coeff;
 }
 
-//john chapman ssao
-//doesn't work right now
-float accumulate2(int i, float3 P, float3 N, uint iSample, float scale, float threshold, float3x3 TBN)
-{
-	float3 sample = mul(TBN, arr[i]);
-	sample = P + sample * scale;
-	float4 occ_pos_screen = proj_to_screen(mul(m_P, float4(sample, 1.0)));
-	occ_pos_screen.xy /= occ_pos_screen.w;
-	
-	#ifdef USE_MSAA
-	gbuffer_data gbd = gbuffer_load_data(occ_pos_screen, iSample);
-	#else
-	gbuffer_data gbd = gbuffer_load_data(occ_pos_screen.xy);
-	#endif
-
-	float screen_occ = NormalizeDepth(gbd.P.z);
-	float currentDepth = NormalizeDepth(P.z);
-	float occ_coeff = (screen_occ>=currentDepth+0.025)?1.0:0.0;
-	float range_check = smoothstep(0.0f, 1.0f, scale/abs(currentDepth - screen_occ));
-	occ_coeff *= range_check;
-	return occ_coeff;
-}
-
 float calc_scale(float radius, float depth)
 {
 	return radius/depth;
@@ -150,36 +121,11 @@ float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius
 		float occ_coeff = accumulate(i, P, N, iSample, scale, DISCARD_THRESHOLD, 0.2);
 		occ += occ_coeff;
 	}
-		
-	occ /= cSamples;
-	occ += (grass == SSDO_GRASS_CONTIRUBTION);
+	
+	//avoid floating point comparision
+	occ = (occ / cSamples) + saturate(grass-SSDO_GRASS_EPS);
 	occ = saturate(occ);
 	occ = occ + (1 - occ)*(1 - SSDO_BLEND_FACTOR);
-	//scalar ops then covert to float3 at the end
-	return float3(occ, occ, occ);
-}
-
-float3 calc_ssao_fast (float3 P, float3 N, float2 tc, uint iSample, float radius, float grass)
-{
-	float occ = 0.f;
-	float scale = calc_scale(radius, P.z);
-	const int cSamples = 26;
-	float3 randomVec = normalize(arr[0]);
-	float3 bitangent = cross(randomVec, N);
-	float3x3 TBN = float3x3(N, bitangent, randomVec);
-	[unroll]
-	for (int i = 0; i < cSamples; i++)
-	{
-		//bias - distance to sample something that is in front
-		float occ_coeff = accumulate2(i, P, N, iSample, 0.5f, DISCARD_THRESHOLD, TBN);
-		occ += occ_coeff;
-	}
-	
-	
-	occ /= cSamples;
-	occ = 1.0 - occ;
-	occ = saturate(occ);
-	//occ = occ + (1 - occ)*(1 - SSDO_BLEND_FACTOR);
 	//scalar ops then covert to float3 at the end
 	return float3(occ, occ, occ);
 }
@@ -197,8 +143,8 @@ float3 calc_ssdo_fast_rough (float3 P, float3 N, float2 tc, uint iSample, float 
 		float occ_coeff = accumulate(i, P, N, iSample, scale, DISCARD_THRESHOLD_2, 0.6);
 		occ += occ_coeff;
 	}
-	occ /= cSamples;
-	occ += grass;
+	//avoid floating point comparision
+	occ = (occ / cSamples) + saturate(grass-SSDO_GRASS_EPS);
 	occ = saturate(occ);
 	occ = occ + (1 - occ)*(1 - SSDO_BLEND_FACTOR);
 	//scalar ops then covert to float3 at the end

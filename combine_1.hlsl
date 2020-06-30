@@ -212,8 +212,6 @@ _out main ( _input I, uint iSample : SV_SAMPLEINDEX )
 		const float cOcclusion = 0.4;
 		occ = occ * cOcclusion + (1.0 - cOcclusion);
 		color = occ * color;
-		//color = L_sun_color;
-		//float d = P.z;
 		//color = occ;
         _out        	o;
         tonemap        	(o.low, o.high, color, tm_scale )	;

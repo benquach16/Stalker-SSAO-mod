@@ -20,7 +20,8 @@
 	#define SSDO_DISCARD_THRESHOLD float(1.5)		// maximum difference in pixel depth. lower value can fix slopes
 	#define SSDO_COLOR_BLEEDING float(20.0)			// power of colored shadows. changes overall intensity so use it along with blend factor
 	#define SSDO_BLEND_FACTOR float(1.4)			// intensity of shadows
-	#define SSDO_GRASS_CONTIRUBTION float(1.0)      // amount to add to grass to ignore in AO shader
+	#define SSDO_GRASS_EPS float(0.2) // really want to make sure we don't add anything if 0
+	#define SSDO_GRASS_CONTIRUBTION float(1.2)      // amount to add to grass to ignore in AO shader
 
 //////////////////////////////////////////////////////////////
 // Motion blur

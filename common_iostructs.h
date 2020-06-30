@@ -316,7 +316,7 @@ struct					gbuffer_data
 	float   hemi; // AO
 	float3  C;
 	float   gloss;
-	float extra;
+	float extra; //used for grass contribution. this will decrease AO if this value is greater than 0
 };
 
 ////////////////////////////////////////////////////////////////
