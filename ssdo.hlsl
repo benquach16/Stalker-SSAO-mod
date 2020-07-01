@@ -53,7 +53,7 @@ float LinearizeDepth(float depth)
 
 //modified SSDO function
 //passing in threshold gives us the ability to modify threshold based on distance
-float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float threshold, float bias)
+float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float threshold, float bias, float falloff)
 {
 	float3 occ_pos_view = P.xyz + ((arr[i] + N) * scale);
 	float4 occ_pos_screen = proj_to_screen(mul(m_P, float4(occ_pos_view, 1.0)));
@@ -63,36 +63,19 @@ float accumulate(int i, float3 P, float3 N, uint iSample, float scale, float thr
 	#else
 	gbuffer_data gbd = gbuffer_load_data(occ_pos_screen.xy);
 	#endif
-
-	float screen_occ = gbd.P.z;
-	float currentDepth = P.z;
-	screen_occ = lerp(screen_occ, 0.f, is_sky(screen_occ));
-	float is_occluder = step(occ_pos_view.z, screen_occ);
-	float dist = abs( currentDepth - screen_occ);
 	
-	//threshold functions
-	//float ignore = smoothstep(0.0, 1.0, saturate(dist - threshold));
-	//float ignore = step(dist, threshold); // old threshold function. if its too blurry try switching
-	float ignore = 0.f; // can do 0 if accu is based on distance
+	float sampleDepth = gbd.P.z;
+	float dist = abs(P.z - sampleDepth);
+	float3 V = gbd.P - P;
+	float VdotV = dot(V, V);
+	float VdotN = dot(V, N);
+	float occ_coeff = (saturate(1.0 - falloff * VdotV) * saturate((VdotN* rsqrt(VdotV)) + bias));
 	
-	float amount = saturate(dist * dist);
-	//old accumulation function - darker the farther away something is
-	//original code did something similar, and looks alright
-	//float amount = saturate(1.5 - screen_occ); //accumulation in this function is backwards. lower means more
-	//float rangeCheck = smoothstep(0.0, 1.0, 1.0/dist);
-	//float amount = step(screen_occ,currentDepth) * rangeCheck;
-
-	//only consider if screen_occ is greater than P.z
-	//This ignores samples that are too far behind to avoid bleeding
-	//ignore += step(screen_occ, currentDepth + bias);
-	//ignore += smoothstep(0.0, 1.0, saturate(currentDepth - (screen_occ + bias) * P.z));
-
-	//ignore unrealistic angles
-	float3 tosample = normalize(gbd.P - P);
-	float dp = dot(N, tosample);
-	//ignore += 1 - step(ANGLE_THRESHOLD, dp);
-	ignore += 1 - smoothstep(0.0, 1.0, dp - ANGLE_THRESHOLD);
-	float occ_coeff = saturate(is_occluder + amount + ignore);
+	//occ_coeff += saturate((1.0 - saturate(dist*dist)) - smoothstep(1.0, 0.0, VdotN - ANGLE_THRESHOLD)) * 0.1;
+	
+	//sampleDepth = lerp(sampleDepth, 0.f, is_sky(sampleDepth));
+	//float is_occluder = step(occ_pos_view.z, sampleDepth);
+	//occ_coeff -= is_occluder;
 	return occ_coeff;
 }
 
@@ -113,41 +96,24 @@ float3 calc_ssdo_fast (float3 P, float3 N, float2 tc, uint iSample, float radius
 {
 	float occ = 0.f;
 	float scale = calc_scale(radius, P.z);
+	float falloff = 1.0/(radius*radius);
 	const int cSamples = 32;
 	[unroll]
 	for (int i = 0; i < cSamples; i++)
 	{
 		//bias - distance to sample something that is in front
-		float occ_coeff = accumulate(i, P, N, iSample, scale, DISCARD_THRESHOLD, 0.2);
+		float occ_coeff = accumulate(i, P, N, iSample, scale, DISCARD_THRESHOLD, 0.0, falloff);
 		occ += occ_coeff;
 	}
 	
 	//avoid floating point comparision
-	occ = (occ / cSamples) + saturate(grass-SSDO_GRASS_EPS);
-	occ = saturate(occ);
-	occ = occ + (1 - occ)*(1 - SSDO_BLEND_FACTOR);
+	occ = (occ / cSamples);
+	occ = saturate(1.0 - occ);
+	grass = saturate(grass - SSDO_GRASS_EPS);
+	occ = saturate(occ + grass);
+	occ = 1 - SSDO_BLEND_FACTOR + (occ * SSDO_BLEND_FACTOR);
 	//scalar ops then covert to float3 at the end
 	return float3(occ, occ, occ);
 }
 
-//calc with less samples
-//doing this is too slow (for now)
-float3 calc_ssdo_fast_rough (float3 P, float3 N, float2 tc, uint iSample, float radius, float grass)
-{
-	float occ = 0.f;
-	float scale = calc_scale(radius, P.z);
-	const int cSamples = 8;
-	[unroll]
-	for (int i = 0; i < cSamples; i++)
-	{
-		float occ_coeff = accumulate(i, P, N, iSample, scale, DISCARD_THRESHOLD_2, 0.6);
-		occ += occ_coeff;
-	}
-	//avoid floating point comparision
-	occ = (occ / cSamples) + saturate(grass-SSDO_GRASS_EPS);
-	occ = saturate(occ);
-	occ = occ + (1 - occ)*(1 - SSDO_BLEND_FACTOR);
-	//scalar ops then covert to float3 at the end
-	return float3(occ, occ, occ);
-}
 #endif // SSAO_QUALITY
