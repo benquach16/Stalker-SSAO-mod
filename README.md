@@ -21,9 +21,9 @@ Pros:
 * Might run faster than before. Performs less vector operations (less register use hopefully) and provides loop unrolling hints.
 
 Cons:
-* Not realistic
+* Aliasing and banding effects at far distances.
 * No blur pass in rendering pipeline
-* Relatively small radius
+* Relatively small radius picks up too much detail leading to the aliasing
 
 ## Implementation Details
 
